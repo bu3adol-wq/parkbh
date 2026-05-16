@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Smart Parking Finder Bahrain</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+/* ============================================================
+   RESET & VARIABLES
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f2f3f5;
+  --surface:#ffffff;
+  --border:#e4e6ea;
+  --border2:#d1d5db;
+  --text:#111827;
+  --text2:#374151;
+  --muted:#6b7280;
+  --muted2:#9ca3af;
+  --blue:#2563eb;
+  --blue-lt:#eff6ff;
+  --blue-mid:#dbeafe;
+  --green:#16a34a;
+  --green-lt:#f0fdf4;
+  --green-mid:#dcfce7;
+  --red:#dc2626;
+  --red-lt:#fef2f2;
+  --red-mid:#fee2e2;
+  --amber:#d97706;
+  --amber-lt:#fffbeb;
+  --amber-mid:#fef3c7;
+  --radius:12px;
+  --radius-sm:8px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
+  --shadow:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.04);
+  --shadow-md:0 8px 24px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.04);
+}
+html,body{height:100%;-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  color:var(--text);
+  display:flex;justify-content:center;align-items:flex-start;
+  overflow-x:hidden;margin:0;
+}
+#app{
+  width:100%;max-width:430px;min-height:100vh;
+  background:var(--bg);
+  display:flex;flex-direction:column;
+  box-shadow:0 0 0 1px rgba(0,0,0,0.06),0 20px 60px rgba(0,0,0,0.1);
+}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+#app-header{
+  position:sticky;top:0;z-index:100;
+  padding:14px 18px 12px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.hdr-left{flex:1}
+.hdr-title{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-0.2px}
+.hdr-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.live-badge{
+  display:flex;align-items:center;gap:4px;
+  background:var(--green-lt);border:1px solid var(--green-mid);
+  border-radius:20px;padding:3px 8px;
+  font-size:10px;font-weight:600;color:var(--green);
+}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.6s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+.pts-badge{
+  background:var(--amber-lt);border:1px solid var(--amber-mid);
+  border-radius:20px;padding:3px 9px;
+  font-size:11px;font-weight:700;color:var(--amber);
+}
+
+/* ============================================================
+   BOTTOM NAV
+   ============================================================ */
+#bnav{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:430px;z-index:200;
+  display:flex;
+  background:var(--surface);
+  border-top:1px solid var(--border);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.nb{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;padding:10px 4px 12px;
+  border:none;background:transparent;cursor:pointer;color:var(--muted2);
+  transition:color 0.2s;position:relative;-webkit-tap-highlight-color:transparent;
+}
+.nb .ni{font-size:20px;line-height:1;transition:transform 0.15s}
+.nb .nl{font-size:9.5px;font-weight:600;letter-spacing:0.3px;transition:color 0.2s}
+.nb.on{color:var(--blue)}
+.nb.on .ni{transform:scale(1.1)}
+.nb.on::after{
+  content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+  width:28px;height:2.5px;background:var(--blue);border-radius:2px 2px 0 0;
+}
+.nb:active .ni{transform:scale(0.92)}
+
+/* ============================================================
+   MAIN
+   ============================================================ */
+#main{flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:80px}
+.sec{display:none;padding:16px 16px 20px;animation:fi 0.25s ease}
+.sec.on{display:block}
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+/* ============================================================
+   HOME
+   ============================================================ */
+.hero{
+  background:var(--blue);
+  border-radius:var(--radius);
+  padding:20px;margin-bottom:14px;
+  position:relative;overflow:hidden;
+}
+.hero::after{
+  content:'';position:absolute;top:-40px;right:-40px;
+  width:160px;height:160px;border-radius:50%;
+  background:rgba(255,255,255,0.06);pointer-events:none;
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  background:rgba(255,255,255,0.15);
+  border-radius:20px;padding:3px 9px;
+  font-size:10px;font-weight:600;color:rgba(255,255,255,0.9);
+  margin-bottom:10px;
+}
+.hero-h{font-size:20px;font-weight:800;color:#fff;line-height:1.2;margin-bottom:6px}
+.hero-sub{font-size:12.5px;color:rgba(255,255,255,0.75);line-height:1.5;margin-bottom:16px}
+
+/* mini map in hero */
+.mmap{
+  background:rgba(255,255,255,0.1);
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:10px;height:96px;
+  position:relative;overflow:hidden;margin-bottom:14px;
+}
+.mmap::before{
+  content:'';position:absolute;inset:0;
+  background:
+    repeating-linear-gradient(0deg,transparent,transparent 22px,rgba(255,255,255,0.05) 22px,rgba(255,255,255,0.05) 23px),
+    repeating-linear-gradient(90deg,transparent,transparent 22px,rgba(255,255,255,0.05) 22px,rgba(255,255,255,0.05) 23px);
+}
+.mpin{position:absolute;width:9px;height:9px;border-radius:50%;animation:pp 2s ease-in-out infinite}
+.mpin.g{background:#22c55e;box-shadow:0 0 0 2px rgba(255,255,255,0.3)}
+.mpin.r{background:#ef4444;box-shadow:0 0 0 2px rgba(255,255,255,0.3)}
+.mpin.a{background:#f59e0b;box-shadow:0 0 0 2px rgba(255,255,255,0.3)}
+@keyframes pp{0%,100%{transform:scale(1)}50%{transform:scale(1.4)}}
+
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.qa{
+  padding:12px;border:none;border-radius:var(--radius-sm);cursor:pointer;
+  font-size:13px;font-weight:600;
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  transition:transform 0.12s,opacity 0.12s;-webkit-tap-highlight-color:transparent;
+}
+.qa:active{transform:scale(0.97);opacity:0.85}
+.qa.p{background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.25)}
+.qa.s{background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.85);border:1px solid rgba(255,255,255,0.15)}
+.qa-ico{font-size:20px}
+
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.sc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow-sm)}
+.sn{font-size:22px;font-weight:800;margin-bottom:2px}
+.sl{font-size:11px;color:var(--muted)}
+.sc.gr .sn{color:var(--green)}
+.sc.re .sn{color:var(--red)}
+.sc.am .sn{color:var(--amber)}
+.sc.cy .sn{color:var(--blue)}
+
+.hiw{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;box-shadow:var(--shadow-sm)}
+.hiw-t{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.6px}
+.hiw-i{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.hiw-i:last-child{margin-bottom:0}
+.hiw-n{width:24px;height:24px;border-radius:50%;flex-shrink:0;background:var(--blue-lt);border:1px solid var(--blue-mid);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--blue)}
+.hiw-tx{font-size:12.5px;color:var(--text2);line-height:1.5;padding-top:3px}
+
+.sl-lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:8px}
+.bh-note{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:12px 14px;
+  font-size:12px;color:var(--text2);
+  display:flex;align-items:flex-start;gap:8px;margin-bottom:14px;
+  box-shadow:var(--shadow-sm);
+}
+
+/* ============================================================
+   MAP
+   ============================================================ */
+.sbar-wrap{position:relative;margin-bottom:10px}
+.sbar{
+  width:100%;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:10px 14px 10px 38px;
+  font-size:14px;color:var(--text);outline:none;
+  transition:border-color 0.15s,box-shadow 0.15s;
+}
+.sbar::placeholder{color:var(--muted2)}
+.sbar:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
+.s-ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:15px;pointer-events:none}
+
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;margin-bottom:12px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  flex-shrink:0;padding:5px 12px;border-radius:20px;
+  font-size:11.5px;font-weight:600;
+  border:1px solid var(--border2);background:var(--surface);color:var(--muted);
+  cursor:pointer;transition:all 0.15s;white-space:nowrap;-webkit-tap-highlight-color:transparent;
+}
+.chip.on{background:var(--blue-lt);border-color:var(--blue);color:var(--blue)}
+.chip:active{transform:scale(0.96)}
+
+/* Map container */
+.smap{
+  border:1px solid var(--border);border-radius:var(--radius);
+  height:280px;position:relative;overflow:hidden;margin-bottom:14px;
+  box-shadow:var(--shadow-sm);
+}
+.smap::before{display:none}
+.mrd{display:none}
+
+/* Kill Leaflet's default white-box divIcon background */
+.leaflet-div-icon, ._pk{
+  background:none!important;
+  border:none!important;
+}
+/* Leaflet fills the container */
+#leaflet-map{
+  width:100%;height:100%;
+  border-radius:var(--radius);
+  z-index:1;
+}
+/* Override Leaflet popup/attribution to match clean theme */
+.leaflet-control-attribution{
+  font-size:9px!important;background:rgba(255,255,255,0.8)!important;
+}
+.leaflet-control-zoom a{
+  color:var(--text)!important;border-color:var(--border)!important;
+  background:var(--surface)!important;
+}
+
+/* Custom pin markup rendered inside L.divIcon */
+.lpin{
+  display:flex;flex-direction:column;align-items:center;
+  cursor:pointer;
+  filter:drop-shadow(0 2px 5px rgba(0,0,0,0.32));
+  transition:transform 0.12s;
+}
+.lpin:hover{transform:scale(1.18)}
+.lpin:active{transform:scale(0.94)}
+.lpin-head{
+  width:30px;height:30px;
+  border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg);
+  display:flex;align-items:center;justify-content:center;
+  border:2.5px solid #fff;
+}
+.lpin-head.pav{background:#16a34a}
+.lpin-head.pfu{background:#dc2626}
+.lpin-head.plv{background:#d97706}
+.lpin-txt{
+  transform:rotate(45deg);
+  font-size:9px;font-weight:800;color:#fff;
+  line-height:1;font-family:-apple-system,sans-serif;
+}
+
+/* Legend */
+.map-legend{
+  position:absolute;bottom:10px;left:10px;display:flex;gap:6px;
+  background:rgba(255,255,255,0.95);border:1px solid var(--border);
+  border-radius:8px;padding:5px 10px;box-shadow:var(--shadow-sm);
+  z-index:500;
+}
+.lg-i{display:flex;align-items:center;gap:4px;font-size:9.5px;color:var(--muted)}
+.lg-d{width:8px;height:8px;border-radius:50%}
+
+/* Parking cards */
+.plist{display:flex;flex-direction:column;gap:8px}
+.pcard{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:14px;
+  transition:box-shadow 0.15s;cursor:pointer;
+  box-shadow:var(--shadow-sm);
+}
+.pcard:hover{box-shadow:var(--shadow)}
+.pcard:active{opacity:0.9}
+.pcard-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.pname{font-size:14px;font-weight:700;color:var(--text)}
+.parea{font-size:11px;color:var(--muted);margin-top:2px}
+.spill{padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:700;flex-shrink:0;white-space:nowrap}
+.spill.av{background:var(--green-lt);color:var(--green);border:1px solid var(--green-mid)}
+.spill.fu{background:var(--red-lt);color:var(--red);border:1px solid var(--red-mid)}
+.spill.lv{background:var(--amber-lt);color:var(--amber);border:1px solid var(--amber-mid)}
+
+.pcard-mid{display:flex;gap:14px;margin-bottom:8px}
+.pst{display:flex;flex-direction:column;gap:2px}
+.psv{font-size:15px;font-weight:700;color:var(--text)}
+.psl{font-size:10px;color:var(--muted)}
+.tbw{flex:1;display:flex;flex-direction:column;gap:3px;justify-content:center}
+.tbl{font-size:10px;color:var(--muted)}
+.tbb{height:4px;background:var(--border);border-radius:4px;overflow:hidden}
+.tbf{height:100%;border-radius:4px;background:var(--blue);transition:width 0.4s}
+
+.pcard-bot{display:flex;gap:8px}
+.bsm{flex:1;padding:8px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;transition:all 0.15s;-webkit-tap-highlight-color:transparent}
+.bsm:active{transform:scale(0.97)}
+.bpr{background:var(--blue);color:#fff;border-color:var(--blue)}
+.bpr:hover{background:#1d4ed8}
+.bgh{color:var(--muted)}
+
+.empty{text-align:center;padding:40px 20px;color:var(--muted)}
+.empty-i{font-size:40px;margin-bottom:12px;opacity:0.4}
+.empty-t{font-size:15px;font-weight:600;margin-bottom:5px;color:var(--text2)}
+.empty-s{font-size:12px}
+
+/* ============================================================
+   REPORT
+   ============================================================ */
+.imp-card{
+  background:var(--blue-lt);border:1px solid var(--blue-mid);
+  border-radius:var(--radius-sm);padding:13px;margin-bottom:14px;
+  display:flex;align-items:center;gap:10px;
+}
+.imp-ico{font-size:22px;flex-shrink:0}
+.imp-tx{font-size:12px;color:var(--text2);line-height:1.4}
+.imp-pts{font-size:14px;font-weight:800;color:var(--blue);margin-top:2px}
+
+.fg{margin-bottom:14px}
+.fl{font-size:11.5px;font-weight:600;color:var(--text2);margin-bottom:6px;display:block}
+.fsel{
+  width:100%;background:var(--surface);border:1px solid var(--border2);
+  border-radius:var(--radius-sm);padding:11px 14px;font-size:13.5px;color:var(--text);
+  outline:none;transition:border-color 0.15s;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%236b7280'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;background-size:12px;
+}
+.fsel:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
+.fsel option{background:#fff;color:var(--text)}
+
+.sbtns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.sbtn{
+  padding:13px 8px;border-radius:var(--radius-sm);
+  border:1.5px solid var(--border2);background:var(--surface);
+  cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;
+  transition:all 0.15s;-webkit-tap-highlight-color:transparent;
+}
+.sbtn:active{transform:scale(0.97)}
+.sbtn.sav{background:var(--green-lt);border-color:var(--green)}
+.sbtn.sfu{background:var(--red-lt);border-color:var(--red)}
+.sbtn.slv{background:var(--amber-lt);border-color:var(--amber)}
+.sbtn-ico{font-size:20px}
+.sbtn-lbl{font-size:11px;font-weight:600;color:var(--muted)}
+.sbtn.sav .sbtn-lbl{color:var(--green)}
+.sbtn.sfu .sbtn-lbl{color:var(--red)}
+.sbtn.slv .sbtn-lbl{color:var(--amber)}
+
+.finp{
+  width:100%;background:var(--surface);border:1px solid var(--border2);
+  border-radius:var(--radius-sm);padding:11px 14px;font-size:13.5px;color:var(--text);
+  outline:none;transition:border-color 0.15s;
+}
+.finp:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
+.finp::placeholder{color:var(--muted2)}
+textarea.finp{resize:vertical;min-height:70px;font-family:inherit}
+
+.tog-row{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:13px;
+}
+.tog-info .tog-t{font-size:13px;font-weight:600;color:var(--text)}
+.tog-info .tog-s{font-size:11px;color:var(--muted);margin-top:2px}
+.tog{width:44px;height:24px;background:#d1d5db;border-radius:12px;position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0}
+.tog.on{background:var(--green)}
+.tog::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
+.tog.on::after{transform:translateX(20px)}
+
+.sub-btn{
+  width:100%;padding:13px;border-radius:var(--radius-sm);border:none;cursor:pointer;
+  background:var(--blue);color:#fff;font-size:14px;font-weight:700;
+  transition:background 0.15s,transform 0.12s;-webkit-tap-highlight-color:transparent;
+}
+.sub-btn:hover{background:#1d4ed8}
+.sub-btn:active{transform:scale(0.99)}
+
+/* ============================================================
+   ACTIVITY
+   ============================================================ */
+.af{display:flex;gap:6px;margin-bottom:12px}
+.tl{position:relative;padding-left:22px}
+.tl::before{content:'';position:absolute;left:6px;top:0;bottom:0;width:1.5px;background:var(--border2);border-radius:2px}
+.tli{position:relative;margin-bottom:12px}
+.tld{position:absolute;left:-18px;top:14px;width:11px;height:11px;border-radius:50%;border:2px solid var(--bg)}
+.tld.reported{background:var(--blue)}
+.tld.confirmed{background:var(--green)}
+.tld.updated,.tld.system{background:var(--muted2)}
+.act-c{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 13px;box-shadow:var(--shadow-sm)}
+.act-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px}
+.act-loc{font-size:13px;font-weight:700;color:var(--text)}
+.act-pts{font-size:12px;font-weight:700;color:var(--amber)}
+.act-type{font-size:11px;color:var(--muted);margin-bottom:3px}
+.act-time{font-size:10px;color:var(--muted2)}
+.act-note{font-size:11px;color:var(--muted);margin-top:4px;font-style:italic}
+.clr-btn{
+  width:100%;padding:11px;border-radius:var(--radius-sm);
+  border:1px solid var(--red-mid);background:var(--red-lt);
+  color:var(--red);font-size:13px;font-weight:600;cursor:pointer;
+  transition:all 0.15s;margin-top:12px;
+}
+.clr-btn:hover{background:#fee2e2}
+.clr-btn:active{transform:scale(0.99)}
+
+/* ============================================================
+   PROFILE
+   ============================================================ */
+.prof-hdr{
+  text-align:center;margin-bottom:16px;
+  padding:22px 20px 18px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);box-shadow:var(--shadow-sm);
+}
+.av{
+  width:68px;height:68px;border-radius:50%;
+  background:var(--blue);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:800;color:#fff;
+  margin:0 auto 10px;
+}
+.pn{font-size:17px;font-weight:800;color:var(--text);margin-bottom:2px}
+.pr{font-size:12px;color:var(--muted);margin-bottom:1px}
+.pl{font-size:12px;color:var(--muted)}
+.bdg-pill{
+  display:inline-block;margin-top:9px;
+  padding:3px 12px;border-radius:20px;
+  font-size:11px;font-weight:700;
+  background:var(--amber-lt);border:1px solid var(--amber-mid);color:var(--amber);
+}
+.pts-big{
+  font-size:34px;font-weight:900;color:var(--blue);
+  margin-top:10px;
+}
+.pts-lbl{font-size:11px;color:var(--muted);margin-top:0px}
+.prog-sec{margin-top:12px}
+.prog-inf{display:flex;justify-content:space-between;margin-bottom:5px;font-size:11px;color:var(--muted)}
+.prog-bg{height:5px;background:var(--border);border-radius:5px;overflow:hidden}
+.prog-f{height:100%;border-radius:5px;background:var(--blue);transition:width 0.8s cubic-bezier(0.22,1,0.36,1)}
+
+.sr{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.sti{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 10px;text-align:center;box-shadow:var(--shadow-sm)}
+.stiv{font-size:20px;font-weight:800;color:var(--blue)}
+.stil{font-size:10px;color:var(--muted);margin-top:2px}
+
+.ach-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.ach{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px;transition:all 0.2s;box-shadow:var(--shadow-sm)}
+.ach.ul{background:var(--amber-lt);border-color:var(--amber-mid)}
+.ach.lk{opacity:0.45}
+.ach-ico{font-size:24px;margin-bottom:5px}
+.ach-nm{font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px}
+.ach-ds{font-size:10px;color:var(--muted);line-height:1.3}
+.ach-tag{display:inline-block;margin-top:5px;font-size:9px;font-weight:700;border-radius:5px;padding:2px 6px}
+.ach-tag.u{color:var(--amber);background:var(--amber-lt);border:1px solid var(--amber-mid)}
+.ach-tag.l{color:var(--muted2);background:var(--bg)}
+
+.pa-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.pb{padding:11px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:600;cursor:pointer;transition:all 0.15s;-webkit-tap-highlight-color:transparent}
+.pb:active{transform:scale(0.97)}
+.pb-exp{background:var(--blue-lt);color:var(--blue);border:1px solid var(--blue-mid)}
+.pb-exp:hover{background:var(--blue-mid)}
+.pb-rst{background:var(--red-lt);color:var(--red);border:1px solid var(--red-mid)}
+.pb-rst:hover{background:var(--red-mid)}
+
+.sec-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px}
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+.moverlay{
+  position:fixed;inset:0;z-index:1000;
+  background:rgba(0,0,0,0.35);
+  display:flex;align-items:flex-end;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity 0.25s;
+}
+.moverlay.op{opacity:1;pointer-events:all}
+.msheet{
+  width:100%;max-width:430px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:20px 20px 0 0;
+  padding:16px 20px 32px;
+  transform:translateY(100%);
+  transition:transform 0.3s cubic-bezier(0.22,1,0.36,1);
+  max-height:88vh;overflow-y:auto;
+}
+.moverlay.op .msheet{transform:translateY(0)}
+.mhandle{width:36px;height:4px;border-radius:4px;background:var(--border2);margin:0 auto 16px}
+.mtitle{font-size:18px;font-weight:800;color:var(--text);margin-bottom:3px}
+.marea{font-size:12px;color:var(--muted);margin-bottom:14px}
+.mig{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.mii{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px}
+.mil{font-size:10px;color:var(--muted);margin-bottom:2px}
+.miv{font-size:15px;font-weight:700;color:var(--text)}
+.mnote{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.5;font-style:italic}
+.mrel{background:var(--green-lt);border:1px solid var(--green-mid);border-radius:var(--radius-sm);padding:11px;margin-bottom:14px;font-size:11.5px;color:var(--text2);line-height:1.5}
+.mbgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.mbtn{padding:11px;border-radius:var(--radius-sm);border:1px solid var(--border2);font-size:12.5px;font-weight:600;cursor:pointer;transition:all 0.15s;background:var(--surface);color:var(--text2);-webkit-tap-highlight-color:transparent}
+.mbtn:active{transform:scale(0.97)}
+.mc{background:var(--green-lt);color:var(--green);border-color:var(--green-mid)}
+.mr{background:var(--amber-lt);color:var(--amber);border-color:var(--amber-mid)}
+.mn{background:var(--blue-lt);color:var(--blue);border-color:var(--blue-mid)}
+.mcl{width:100%;padding:11px;border-radius:var(--radius-sm);background:var(--bg);color:var(--muted);border:1px solid var(--border);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s}
+.mcl:active{transform:scale(0.99)}
+
+.exp-sum{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;font-size:12px;color:var(--text2);line-height:1.8;font-family:monospace;white-space:pre-wrap}
+.bcopy{width:100%;padding:12px;border-radius:var(--radius-sm);background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.15s;margin-bottom:8px}
+.bcopy:hover{background:#1d4ed8}
+.bcopy:active{transform:scale(0.99)}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+#toasts{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2000;display:flex;flex-direction:column;gap:7px;pointer-events:none;width:calc(100% - 32px);max-width:390px}
+.toast{background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:13px;font-weight:600;color:var(--text);box-shadow:var(--shadow-md);display:flex;align-items:center;gap:9px;animation:tin 0.35s cubic-bezier(0.22,1,0.36,1) forwards;pointer-events:none}
+.toast.out{animation:tout 0.25s ease forwards}
+@keyframes tin{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes tout{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-8px)}}
+.t-ico{font-size:17px;flex-shrink:0}
+.t-msg{flex:1;font-size:12.5px;color:var(--text2)}
+
+.mb16{margin-bottom:16px}
+.mb12{margin-bottom:12px}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== HEADER ===== -->
+  <div id="app-header">
+    <div class="hdr-left">
+      <div class="hdr-title" id="hdr-t">Smart Parking Finder</div>
+      <div class="hdr-sub" id="hdr-s">Bahrain Community Platform</div>
+    </div>
+    <div class="hdr-right">
+      <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+      <div class="pts-badge" id="hdr-pts">⭐ 0 pts</div>
+    </div>
+  </div>
+
+  <!-- ===== MAIN ===== -->
+  <div id="main">
+
+    <!-- HOME -->
+    <div id="s-home" class="sec on">
+      <div class="hero">
+        <div class="hero-badge">🇧🇭 Bahrain Smart City</div>
+        <div class="hero-h">Smart Parking<br>Finder Bahrain</div>
+        <div class="hero-sub">Find parking faster with real-time community updates. Powered by drivers, for drivers.</div>
+        <div class="mmap" id="mmap"></div>
+        <div class="qa-grid">
+          <button class="qa p" onclick="go('map')"><span class="qa-ico">🗺️</span>Find Parking Now</button>
+          <button class="qa s" onclick="go('report')"><span class="qa-ico">📝</span>Report Status</button>
+        </div>
+      </div>
+      <div class="sl-lbl">📊 Live Overview</div>
+      <div class="sg mb16">
+        <div class="sc gr"><div class="sn" id="h-av">0</div><div class="sl">✅ Available</div></div>
+        <div class="sc re"><div class="sn" id="h-fu">0</div><div class="sl">🔴 Full</div></div>
+        <div class="sc am"><div class="sn" id="h-rp">0</div><div class="sl">📋 Reports Today</div></div>
+        <div class="sc cy"><div class="sn" id="h-pt">0</div><div class="sl">⭐ Your Points</div></div>
+      </div>
+      <div class="bh-note">
+        <div style="font-size:16px;flex-shrink:0;margin-top:1px">📍</div>
+        <div>Designed for busy areas like <strong>Seef, Manama, Muharraq</strong>, and university zones across Bahrain.</div>
+      </div>
+      <div class="hiw mb16">
+        <div class="hiw-t">⚡ How It Works</div>
+        <div class="hiw-i"><div class="hiw-n">1</div><div class="hiw-tx">Browse the map and see real-time parking availability near you.</div></div>
+        <div class="hiw-i"><div class="hiw-n">2</div><div class="hiw-tx">Report parking status — Available, Full, or Leaving Soon.</div></div>
+        <div class="hiw-i"><div class="hiw-n">3</div><div class="hiw-tx">Earn points and unlock achievements for every contribution.</div></div>
+        <div class="hiw-i"><div class="hiw-n">4</div><div class="hiw-tx">Help fellow drivers save time and reduce traffic congestion in Bahrain.</div></div>
+      </div>
+      <div class="sl-lbl">🕐 Latest Update</div>
+      <div id="h-recent"></div>
+    </div>
+
+    <!-- MAP -->
+    <div id="s-map" class="sec">
+      <div class="sbar-wrap mb12">
+        <span class="s-ico">🔍</span>
+        <input class="sbar" id="sinput" type="text" placeholder="Search by name or area…" oninput="applyF()"/>
+      </div>
+      <div class="chips" id="chips">
+        <div class="chip on" data-f="all"       onclick="setF('all')">All</div>
+        <div class="chip"    data-f="available" onclick="setF('available')">✅ Available</div>
+        <div class="chip"    data-f="full"      onclick="setF('full')">🔴 Full</div>
+        <div class="chip"    data-f="leaving"   onclick="setF('leaving')">🟠 Leaving Soon</div>
+        <div class="chip"    data-f="nearby"    onclick="setF('nearby')">📍 Nearby</div>
+        <div class="chip"    data-f="hightrust" onclick="setF('hightrust')">⭐ High Trust</div>
+      </div>
+      <div class="smap" id="smap">
+        <div id="leaflet-map"></div>
+        <div class="map-legend">
+          <div class="lg-i"><div class="lg-d" style="background:#16a34a"></div>Available</div>
+          <div class="lg-i"><div class="lg-d" style="background:#dc2626"></div>Full</div>
+          <div class="lg-i"><div class="lg-d" style="background:#d97706"></div>Leaving</div>
+        </div>
+      </div>
+      <div class="sl-lbl" id="plist-lbl">Parking Locations</div>
+      <div class="plist" id="plist"></div>
+    </div>
+
+    <!-- REPORT -->
+    <div id="s-report" class="sec">
+      <div class="imp-card mb16">
+        <div class="imp-ico">💡</div>
+        <div>
+          <div class="imp-tx">Your report helps other drivers find parking faster and reduces congestion in Bahrain.</div>
+          <div class="imp-pts">+15 points per report</div>
+        </div>
+      </div>
+      <div class="fg">
+        <label class="fl">📍 Parking Location</label>
+        <select class="fsel" id="rloc"><option value="">— Select a location —</option></select>
+      </div>
+      <div class="fg">
+        <label class="fl">🚦 Parking Status</label>
+        <div class="sbtns">
+          <div class="sbtn" id="sb-av" onclick="selSt('available')"><div class="sbtn-ico">✅</div><div class="sbtn-lbl">Available</div></div>
+          <div class="sbtn" id="sb-fu" onclick="selSt('full')"><div class="sbtn-ico">🔴</div><div class="sbtn-lbl">Full</div></div>
+          <div class="sbtn" id="sb-lv" onclick="selSt('leaving')"><div class="sbtn-ico">🟠</div><div class="sbtn-lbl">Leaving Soon</div></div>
+        </div>
+      </div>
+      <div class="fg">
+        <label class="fl">🅿️ Available Spaces (approx.)</label>
+        <input class="finp" id="rsp" type="number" min="0" max="999" placeholder="e.g. 12"/>
+      </div>
+      <div class="fg">
+        <label class="fl">📝 Optional Note</label>
+        <textarea class="finp" id="rnote" placeholder="e.g. Ground floor is full but Level 2 has spaces…"></textarea>
+      </div>
+      <div class="fg">
+        <div class="tog-row">
+          <div class="tog-info"><div class="tog-t">🚗 I'm leaving this spot soon</div><div class="tog-s">Help others know a spot will open up</div></div>
+          <div class="tog" id="ltog" onclick="togLeave()"></div>
+        </div>
+      </div>
+      <button class="sub-btn" onclick="submitR()">🚀 Submit Report</button>
+    </div>
+
+    <!-- ACTIVITY -->
+    <div id="s-activity" class="sec">
+      <div class="af">
+        <div class="chip on" data-af="all"       onclick="setAF('all')">All</div>
+        <div class="chip"    data-af="reported"  onclick="setAF('reported')">Reports</div>
+        <div class="chip"    data-af="confirmed" onclick="setAF('confirmed')">Confirmations</div>
+      </div>
+      <div class="tl" id="act-list"></div>
+      <button class="clr-btn" onclick="clearAct()">🗑️ Clear Activity History</button>
+    </div>
+
+    <!-- PROFILE -->
+    <div id="s-profile" class="sec">
+      <div class="prof-hdr">
+        <div class="av">DD</div>
+        <div class="pn">Demo Driver</div>
+        <div class="pr">Community Parking Contributor</div>
+        <div class="pl">📍 Bahrain</div>
+        <div class="bdg-pill" id="p-bdg">New Driver</div>
+        <div class="pts-big" id="p-pts">0</div>
+        <div class="pts-lbl">Total Points</div>
+        <div class="prog-sec">
+          <div class="prog-inf"><span id="p-cur"></span><span id="p-nxt"></span></div>
+          <div class="prog-bg"><div class="prog-f" id="p-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div class="sr mb16">
+        <div class="sti"><div class="stiv" id="p-rep">0</div><div class="stil">Reports</div></div>
+        <div class="sti"><div class="stiv" id="p-con">0</div><div class="stil">Confirmations</div></div>
+        <div class="sti"><div class="stiv" id="p-tot">0</div><div class="stil">Total</div></div>
+      </div>
+      <div class="sec-title">🏆 Achievements</div>
+      <div class="ach-grid mb16" id="ach-grid"></div>
+      <div class="pa-grid">
+        <button class="pb pb-exp" onclick="doExport()">📤 Export Summary</button>
+        <button class="pb pb-rst" onclick="doReset()">🔄 Reset Demo</button>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- BOTTOM NAV -->
+  <nav id="bnav">
+    <button class="nb on" data-tab="home"     onclick="go('home')"><span class="ni">🏠</span><span class="nl">Home</span></button>
+    <button class="nb"    data-tab="map"      onclick="go('map')"><span class="ni">🗺️</span><span class="nl">Map</span></button>
+    <button class="nb"    data-tab="report"   onclick="go('report')"><span class="ni">📝</span><span class="nl">Report</span></button>
+    <button class="nb"    data-tab="activity" onclick="go('activity')"><span class="ni">📋</span><span class="nl">Activity</span></button>
+    <button class="nb"    data-tab="profile"  onclick="go('profile')"><span class="ni">👤</span><span class="nl">Profile</span></button>
+  </nav>
+
+</div><!-- /app -->
+
+<!-- MODAL -->
+<div class="moverlay" id="modal" onclick="moClick(event)">
+  <div class="msheet" id="msheet"><div id="mcontent"></div></div>
+</div>
+
+<!-- TOASTS -->
+<div id="toasts"></div>
+
+<script>
+/* ============================================================
+   DEFAULT DATA
+   ============================================================ */
+const DEF_LOCS = [
+  {id:1, name:"Seef Mall",            area:"Seef District",     status:"available", spaces:32, distance:"0.8 km", trust:88, reports:14, lastUpdated:"2 min ago",  note:"Level 3 has plenty of space near the elevator.", x:18, y:22, lat:26.2159, lng:50.5318},
+  {id:2, name:"City Centre Bahrain",  area:"Manama",            status:"full",      spaces:0,  distance:"1.2 km", trust:91, reports:22, lastUpdated:"5 min ago",  note:"All levels reportedly full. Try nearby Seef Mall.", x:52, y:18, lat:26.2272, lng:50.5472},
+  {id:3, name:"Manama Souq",          area:"Old Manama",        status:"leaving",   spaces:4,  distance:"1.8 km", trust:74, reports:8,  lastUpdated:"8 min ago",  note:"Street parking clearing up near the main gate.", x:72, y:30, lat:26.2265, lng:50.5866},
+  {id:4, name:"Bahrain Polytechnic",  area:"Isa Town",          status:"available", spaces:60, distance:"5.4 km", trust:82, reports:6,  lastUpdated:"12 min ago", note:"Main lots A and B are both open today.", x:25, y:65, lat:26.1096, lng:50.5516},
+  {id:5, name:"University of Bahrain",area:"Sakhir",            status:"full",      spaces:0,  distance:"7.2 km", trust:79, reports:18, lastUpdated:"3 min ago",  note:"Graduation week — expect full parking all day.", x:10, y:78, lat:26.0713, lng:50.5479},
+  {id:6, name:"The Avenues Bahrain",  area:"Seef District",     status:"available", spaces:120,distance:"1.5 km", trust:95, reports:31, lastUpdated:"1 min ago",  note:"Multi-level car park. Rooftop has plenty of spaces.", x:38, y:42, lat:26.2254, lng:50.5244},
+  {id:7, name:"Muharraq Market",      area:"Muharraq",          status:"leaving",   spaces:6,  distance:"3.0 km", trust:68, reports:5,  lastUpdated:"15 min ago", note:"Narrow street parking. A few spots near entrance.", x:80, y:14, lat:26.2575, lng:50.6098},
+  {id:8, name:"Bahrain Bay",          area:"Manama Waterfront", status:"available", spaces:45, distance:"2.2 km", trust:87, reports:11, lastUpdated:"4 min ago",  note:"Waterfront parking open. Easy access from bridge.", x:62, y:54, lat:26.2280, lng:50.5942},
+  {id:9, name:"Diplomatic Area",      area:"Manama",            status:"full",      spaces:0,  distance:"2.9 km", trust:83, reports:9,  lastUpdated:"7 min ago",  note:"Business hours. All reserved spots taken.", x:46, y:70, lat:26.2254, lng:50.5800},
+  {id:10,name:"Adliya Block 338",     area:"Adliya",            status:"available", spaces:18, distance:"2.5 km", trust:76, reports:7,  lastUpdated:"10 min ago", note:"Side street parking available. Watch for orange cones.", x:82, y:62, lat:26.2153, lng:50.5956},
+];
+const DEF_USER = {name:"Demo Driver", points:0, reportsSubmitted:0, confirmations:0};
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let locs=[], usr={}, acts=[], rToday=0;
+let curF='all', curAF='all', selStat='', leavingOn=false;
+let pendingLoc=null, seenAch=new Set();
+
+/* ============================================================
+   ACHIEVEMENTS
+   ============================================================ */
+const ACHS=[
+  {id:'r1',  icon:'📝', name:'First Report',       desc:'Submit your first parking report.',             ok:u=>u.reportsSubmitted>=1},
+  {id:'r5',  icon:'🚀', name:'5 Reports',           desc:'Submit 5 parking reports.',                    ok:u=>u.reportsSubmitted>=5},
+  {id:'c1',  icon:'✅', name:'First Confirmation',  desc:'Confirm a parking status for the first time.', ok:u=>u.confirmations>=1},
+  {id:'tc',  icon:'⭐', name:'Trusted Contributor', desc:'Reach 10 total contributions.',               ok:u=>(u.reportsSubmitted+u.confirmations)>=10},
+  {id:'ph',  icon:'🦸', name:'Parking Hero',         desc:'Earn 100 points.',                            ok:u=>u.points>=100},
+  {id:'cc',  icon:'🏆', name:'Community Champion',   desc:'Earn 200 points.',                            ok:u=>u.points>=200},
+];
+const BADGES=[
+  {name:'New Driver',         min:0,   max:49,        next:50},
+  {name:'Helpful Driver',     min:50,  max:99,        next:100},
+  {name:'Parking Hero',       min:100, max:199,       next:200},
+  {name:'Community Champion', min:200, max:Infinity,  next:null},
+];
+
+/* ============================================================
+   LOCALSTORAGE
+   ============================================================ */
+const K={L:'spf_l',U:'spf_u',A:'spf_a',T:'spf_t',V:'spf_v'};
+const DATA_VER='3'; // bump this to auto-clear stale localStorage
+function loadData(){
+  // Clear stale data from older app versions that lack lat/lng
+  if(localStorage.getItem(K.V)!==DATA_VER){
+    [K.L,K.U,K.A,K.T].forEach(k=>localStorage.removeItem(k));
+    localStorage.setItem(K.V,DATA_VER);
+  }
+  try{
+    const savedLocs=JSON.parse(localStorage.getItem(K.L));
+    if(savedLocs){
+      // Always merge lat/lng from DEF_LOCS so they're never missing
+      locs=savedLocs.map(saved=>{
+        const def=DEF_LOCS.find(d=>d.id===saved.id);
+        return def ? {...saved, lat:def.lat, lng:def.lng} : saved;
+      });
+    } else {
+      locs=clone(DEF_LOCS);
+    }
+    usr  =JSON.parse(localStorage.getItem(K.U))||{...DEF_USER};
+    acts =JSON.parse(localStorage.getItem(K.A))||[];
+    rToday=parseInt(localStorage.getItem(K.T)||'0');
+  }catch(e){locs=clone(DEF_LOCS);usr={...DEF_USER};acts=[];rToday=0;}
+}
+function save(){
+  try{
+    localStorage.setItem(K.L,JSON.stringify(locs));
+    localStorage.setItem(K.U,JSON.stringify(usr));
+    localStorage.setItem(K.A,JSON.stringify(acts));
+    localStorage.setItem(K.T,String(rToday));
+  }catch(e){}
+}
+function clone(x){return JSON.parse(JSON.stringify(x))}
+
+/* ============================================================
+   HEADER DEFS
+   ============================================================ */
+const HDR={
+  home:   {t:'Smart Parking Finder',s:'Bahrain Community Platform'},
+  map:    {t:'Parking Map',          s:'Real-time Availability · Bahrain'},
+  report: {t:'Report Parking',       s:'Help the community · Earn points'},
+  activity:{t:'Activity Feed',        s:'Your contributions & updates'},
+  profile:{t:'My Profile',           s:'Stats, badges & achievements'},
+};
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+function go(tab){
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  document.getElementById('s-'+tab).classList.add('on');
+  document.querySelectorAll('.nb').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  document.getElementById('hdr-t').textContent=HDR[tab].t;
+  document.getElementById('hdr-s').textContent=HDR[tab].s;
+  if(tab==='home')    rHome();
+  if(tab==='map'){
+    rPList();
+    // Container is now visible — safe to init/resize Leaflet
+    setTimeout(()=>{ buildSimMap(); },80);
+  }
+  if(tab==='activity')rAct();
+  if(tab==='profile') rProf();
+  if(tab==='report'&&pendingLoc!==null){
+    document.getElementById('rloc').value=pendingLoc;
+    pendingLoc=null;
+  }
+}
+
+/* ============================================================
+   RENDER ALL
+   ============================================================ */
+function rAll(){rHome();rAct();rProf();updHdrPts();}
+/* map is rendered on-demand when its tab is shown */
+function updHdrPts(){document.getElementById('hdr-pts').textContent='⭐ '+usr.points+' pts'}
+
+/* ============================================================
+   HOME
+   ============================================================ */
+function rHome(){
+  document.getElementById('h-av').textContent=locs.filter(l=>l.status==='available').length;
+  document.getElementById('h-fu').textContent=locs.filter(l=>l.status==='full').length;
+  document.getElementById('h-rp').textContent=rToday;
+  document.getElementById('h-pt').textContent=usr.points;
+  const el=document.getElementById('h-recent');
+  if(!acts.length){
+    el.innerHTML=`<div class="empty"><div class="empty-i">🅿️</div><div class="empty-t">No activity yet</div><div class="empty-s">Submit a report to get started and earn points!</div></div>`;
+  }else{
+    el.innerHTML=actItemHTML(acts[0]);
+  }
+}
+
+/* ============================================================
+   MINI MAP (HOME)
+   ============================================================ */
+function buildMiniMap(){
+  const m=document.getElementById('mmap');
+  m.innerHTML='';
+  [{x:14,y:18,c:'g',d:0},{x:44,y:45,c:'g',d:0.3},{x:68,y:18,c:'r',d:0.6},{x:80,y:55,c:'g',d:0.9},{x:26,y:68,c:'a',d:1.2},{x:56,y:60,c:'r',d:1.5},{x:74,y:74,c:'g',d:1.8},{x:10,y:52,c:'a',d:2.1}].forEach(p=>{
+    const d=document.createElement('div');
+    d.className='mpin '+p.c;
+    d.style.cssText=`left:${p.x}%;top:${p.y}%;animation-delay:${p.d}s`;
+    m.appendChild(d);
+  });
+}
+
+/* ============================================================
+   LEAFLET MAP — real interactive map with proper markers
+   ============================================================ */
+let leafletMap = null;
+let leafletMarkers = [];
+
+function initLeafletMap(){
+  if(leafletMap) return;
+  leafletMap = L.map('leaflet-map',{
+    center:[26.225, 50.565],
+    zoom:13,
+    zoomControl:true,
+    attributionControl:true,
+  });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://openstreetmap.org">OpenStreetMap</a>',
+    maxZoom:19,
+  }).addTo(leafletMap);
+}
+
+function buildSimMap(){
+  if(typeof L==='undefined') return; // Leaflet not loaded yet
+  if(!leafletMap) initLeafletMap();
+
+  // Must invalidateSize FIRST so the map knows its real dimensions
+  leafletMap.invalidateSize();
+
+  // Clear old markers
+  leafletMarkers.forEach(m=>leafletMap.removeLayer(m));
+  leafletMarkers=[];
+
+  getFLocs().forEach(loc=>{
+    if(!loc.lat||!loc.lng) return;
+
+    const color=loc.status==='available'?'#16a34a':
+                loc.status==='full'     ?'#dc2626':'#d97706';
+    const cnt=loc.spaces>99?'99+':loc.spaces>0?String(loc.spaces):'–';
+
+    const icon=L.divIcon({
+      className:'_pk',
+      html:`<div style="width:36px;height:36px;background:${color};border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer;">${cnt}</div>`,
+      iconSize:[36,36],
+      iconAnchor:[18,18],
+    });
+
+    const marker=L.marker([loc.lat,loc.lng],{icon,title:loc.name})
+      .addTo(leafletMap)
+      .on('click',()=>openM(loc.id));
+
+    leafletMarkers.push(marker);
+  });
+
+  // Second invalidateSize after tiles settle
+  setTimeout(()=>leafletMap.invalidateSize(),300);
+}
+
+/* ============================================================
+   MAP SECTION
+   ============================================================ */
+function rMap(){buildSimMap();rPList();}
+function rPList(){
+  const list=document.getElementById('plist');
+  const fl=getFLocs();
+  document.getElementById('plist-lbl').textContent=fl.length+' Parking Location'+(fl.length!==1?'s':'');
+  if(!fl.length){
+    list.innerHTML=`<div class="empty"><div class="empty-i">🔍</div><div class="empty-t">No results found</div><div class="empty-s">Try a different filter or search term.</div></div>`;
+    return;
+  }
+  list.innerHTML=fl.map(pcHTML).join('');
+}
+function pcHTML(loc){
+  const cls=loc.status==='available'?'av':loc.status==='full'?'fu':'lv';
+  const lbl=loc.status==='available'?'✅ Available':loc.status==='full'?'🔴 Full':'🟠 Leaving Soon';
+  return `<div class="pcard" onclick="openM(${loc.id})">
+    <div class="pcard-top">
+      <div><div class="pname">${loc.name}</div><div class="parea">📍 ${loc.area}</div></div>
+      <div class="spill ${cls}">${lbl}</div>
+    </div>
+    <div class="pcard-mid">
+      <div class="pst"><div class="psv">${loc.spaces}</div><div class="psl">Spaces</div></div>
+      <div class="pst"><div class="psv" style="font-size:13px">${loc.distance}</div><div class="psl">Distance</div></div>
+      <div class="pst"><div class="psv" style="font-size:13px">${loc.reports}</div><div class="psl">Reports</div></div>
+      <div class="tbw"><div class="tbl">Trust: ${loc.trust}%</div><div class="tbb"><div class="tbf" style="width:${loc.trust}%"></div></div></div>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:8px">🕐 Updated ${loc.lastUpdated}</div>
+    <div class="pcard-bot">
+      <button class="bsm bpr" onclick="event.stopPropagation();openM(${loc.id})">View Details</button>
+      <button class="bsm bgh" onclick="event.stopPropagation();goRep(${loc.id})">Report</button>
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   FILTERS
+   ============================================================ */
+function setF(f){
+  curF=f;
+  document.querySelectorAll('#chips .chip').forEach(c=>c.classList.toggle('on',c.dataset.f===f));
+  applyF();
+}
+function applyF(){rMap();}
+function getFLocs(){
+  const q=(document.getElementById('sinput')||{value:''}).value.toLowerCase().trim();
+  return locs.filter(l=>{
+    const ms=!q||l.name.toLowerCase().includes(q)||l.area.toLowerCase().includes(q);
+    let mf=true;
+    if(curF==='available') mf=l.status==='available';
+    if(curF==='full')      mf=l.status==='full';
+    if(curF==='leaving')   mf=l.status==='leaving';
+    if(curF==='nearby')    mf=parseFloat(l.distance)<=2.5;
+    if(curF==='hightrust') mf=l.trust>=80;
+    return ms&&mf;
+  });
+}
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+function openM(id){
+  const loc=locs.find(l=>l.id===id);if(!loc)return;
+  const cls=loc.status==='available'?'av':loc.status==='full'?'fu':'lv';
+  const lbl=loc.status==='available'?'✅ Available':loc.status==='full'?'🔴 Full':'🟠 Leaving Soon';
+  const rel=loc.trust>=85?'⭐ Highly reliable — strong community trust score.':
+    loc.trust>=70?'👍 Generally reliable — multiple reports confirm this status.':
+    '⚠️ Moderate reliability — status may have changed. Confirm if possible.';
+  document.getElementById('mcontent').innerHTML=`
+    <div class="mhandle"></div>
+    <div class="mtitle">${loc.name}</div>
+    <div class="marea">📍 ${loc.area} · ${loc.distance} away</div>
+    <div style="margin-bottom:14px"><span class="spill ${cls}">${lbl}</span></div>
+    <div class="mig">
+      <div class="mii"><div class="mil">Available Spaces</div><div class="miv" style="color:var(--cyan)">${loc.spaces}</div></div>
+      <div class="mii"><div class="mil">Trust Score</div><div class="miv" style="color:var(--gold2)">${loc.trust}%</div></div>
+      <div class="mii"><div class="mil">Reports</div><div class="miv">${loc.reports}</div></div>
+      <div class="mii"><div class="mil">Last Updated</div><div class="miv" style="font-size:12px">${loc.lastUpdated}</div></div>
+    </div>
+    ${loc.note?`<div class="mnote">💬 "${loc.note}"</div>`:''}
+    <div class="mrel">${rel}</div>
+    <div class="mbgrid">
+      <button class="mbtn mc" onclick="doConf(${loc.id})">✅ Confirm Status</button>
+      <button class="mbtn mr" onclick="doRepChange(${loc.id})">🔄 Report Change</button>
+    </div>
+    <div class="mbgrid">
+      <button class="mbtn mn" onclick="doNav('${loc.name.replace(/'/g,"\\'")}')">🧭 Navigate</button>
+      <button class="mbtn" style="background:var(--glass);color:var(--muted);border:1px solid var(--glass-border)" onclick="closeM()">✕ Close</button>
+    </div>
+  `;
+  document.getElementById('modal').classList.add('op');
+  document.body.style.overflow='hidden';
+}
+function closeM(){document.getElementById('modal').classList.remove('op');document.body.style.overflow='';}
+function moClick(e){if(e.target===document.getElementById('modal'))closeM();}
+
+function doConf(id){
+  const loc=locs.find(l=>l.id===id);if(!loc)return;
+  loc.trust=Math.min(100,loc.trust+3);loc.reports++;loc.lastUpdated='Just now';
+  usr.points+=10;usr.confirmations++;rToday++;
+  acts.unshift(mkAct('confirmed',loc.name,loc.status,null,10));
+  save();closeM();
+  toast('✅','Confirmed: '+loc.name+'. +10 pts!','var(--green)');
+  chkAch();rAll();
+}
+function doRepChange(id){closeM();pendingLoc=id;go('report');}
+function doNav(name){toast('🧭','Navigation started to '+name,'var(--cyan)');}
+
+/* ============================================================
+   REPORT
+   ============================================================ */
+function buildRepSel(){
+  const s=document.getElementById('rloc');
+  s.innerHTML='<option value="">— Select a location —</option>';
+  locs.forEach(l=>{
+    const o=document.createElement('option');
+    o.value=l.id;o.textContent=l.name+' ('+l.area+')';s.appendChild(o);
+  });
+}
+function selSt(s){
+  selStat=s;
+  ['available','full','leaving'].forEach(x=>{
+    const id=x==='available'?'sb-av':x==='full'?'sb-fu':'sb-lv';
+    document.getElementById(id).className='sbtn'+(x===s?' s'+x.replace('available','av').replace('full','fu').replace('leaving','lv'):'');
+  });
+}
+function togLeave(){leavingOn=!leavingOn;document.getElementById('ltog').classList.toggle('on',leavingOn);}
+function submitR(){
+  const id=parseInt(document.getElementById('rloc').value);
+  const sp=parseInt(document.getElementById('rsp').value);
+  const nt=document.getElementById('rnote').value.trim();
+  if(!id){toast('⚠️','Please select a location.','var(--amber)');return;}
+  if(!selStat){toast('⚠️','Please select a status.','var(--amber)');return;}
+  if(isNaN(sp)||sp<0){toast('⚠️','Please enter valid available spaces.','var(--amber)');return;}
+  const loc=locs.find(l=>l.id===id);if(!loc)return;
+  const st=leavingOn?'leaving':selStat;
+  loc.status=st;loc.spaces=sp;loc.lastUpdated='Just now';
+  if(nt)loc.note=nt;
+  loc.reports++;loc.trust=Math.min(100,loc.trust+2);
+  usr.points+=15;usr.reportsSubmitted++;rToday++;
+  acts.unshift(mkAct('reported',loc.name,st,nt||null,15));
+  save();
+  // Reset form
+  document.getElementById('rloc').value='';
+  document.getElementById('rsp').value='';
+  document.getElementById('rnote').value='';
+  selStat='';leavingOn=false;
+  document.getElementById('ltog').classList.remove('on');
+  ['sb-av','sb-fu','sb-lv'].forEach(x=>document.getElementById(x).className='sbtn');
+  toast('🎉','Report submitted for '+loc.name+'! +15 pts','var(--green)');
+  chkAch();rAll();
+  setTimeout(()=>go('map'),1200);
+}
+function goRep(id){pendingLoc=id;go('report');}
+
+/* ============================================================
+   ACTIVITY
+   ============================================================ */
+function mkAct(type,location,status,note,pts){
+  return {id:Date.now()+Math.random(),type,location,status,
+    time:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+    points:pts,note:note||null};
+}
+function setAF(f){
+  curAF=f;
+  document.querySelectorAll('[data-af]').forEach(c=>c.classList.toggle('on',c.dataset.af===f));
+  rAct();
+}
+function rAct(){
+  const el=document.getElementById('act-list');
+  let items=acts;
+  if(curAF==='reported')  items=acts.filter(a=>a.type==='reported');
+  if(curAF==='confirmed') items=acts.filter(a=>a.type==='confirmed');
+  if(!items.length){
+    el.innerHTML=`<div class="empty"><div class="empty-i">📋</div><div class="empty-t">No activity yet</div><div class="empty-s">Submit a report or confirm a status to get started.</div></div>`;
+    return;
+  }
+  el.innerHTML=items.map(actItemHTML).join('');
+}
+function actItemHTML(item){
+  const dcls=item.type==='reported'?'reported':item.type==='confirmed'?'confirmed':'system';
+  const tl=item.type==='reported'?'Reported':item.type==='confirmed'?'Confirmed':item.type==='system'?'System Update':'Updated';
+  const sl=item.status==='available'?`<span class="spill av" style="font-size:9px;padding:2px 7px">Available</span>`:
+    item.status==='full'?`<span class="spill fu" style="font-size:9px;padding:2px 7px">Full</span>`:
+    item.status==='leaving'?`<span class="spill lv" style="font-size:9px;padding:2px 7px">Leaving Soon</span>`:'';
+  return `<div class="tli">
+    <div class="tld ${dcls}"></div>
+    <div class="act-c">
+      <div class="act-top"><div class="act-loc">${item.location}</div><div class="act-pts">+${item.points} pts</div></div>
+      <div class="act-type">${tl} ${sl}</div>
+      <div class="act-time">🕐 ${item.time}</div>
+      ${item.note?`<div class="act-note">"${item.note}"</div>`:''}
+    </div>
+  </div>`;
+}
+function clearAct(){
+  if(!confirm('Clear all activity history?'))return;
+  acts=[];save();rAct();rHome();
+  toast('🗑️','Activity history cleared.','var(--muted)');
+}
+
+/* ============================================================
+   PROFILE
+   ============================================================ */
+function getBdg(pts){return BADGES.find(b=>pts>=b.min&&pts<=b.max)||BADGES[0];}
+function rProf(){
+  const b=getBdg(usr.points);
+  document.getElementById('p-pts').textContent=usr.points;
+  document.getElementById('p-bdg').textContent=b.name;
+  document.getElementById('p-rep').textContent=usr.reportsSubmitted;
+  document.getElementById('p-con').textContent=usr.confirmations;
+  document.getElementById('p-tot').textContent=usr.reportsSubmitted+usr.confirmations;
+  if(b.next){
+    const pct=((usr.points-b.min)/(b.next-b.min)*100).toFixed(1);
+    document.getElementById('p-bar').style.width=pct+'%';
+    document.getElementById('p-cur').textContent=b.name;
+    document.getElementById('p-nxt').textContent=b.next+' pts → Next badge';
+  }else{
+    document.getElementById('p-bar').style.width='100%';
+    document.getElementById('p-cur').textContent='🏆 Max Badge Reached!';
+    document.getElementById('p-nxt').textContent='';
+  }
+  document.getElementById('ach-grid').innerHTML=ACHS.map(a=>{
+    const u=a.ok(usr);
+    return `<div class="ach ${u?'ul':'lk'}">
+      <div class="ach-ico">${a.icon}</div>
+      <div class="ach-nm">${a.name}</div>
+      <div class="ach-ds">${a.desc}</div>
+      <div class="ach-tag ${u?'u':'l'}">${u?'✅ Unlocked':'🔒 Locked'}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ============================================================
+   ACHIEVEMENTS CHECK
+   ============================================================ */
+function chkAch(){
+  ACHS.forEach(a=>{
+    if(!seenAch.has(a.id)&&a.ok(usr)){
+      seenAch.add(a.id);
+      toast('🏆','Achievement unlocked: '+a.name+' '+a.icon,'var(--gold2)');
+    }
+  });
+}
+function initAch(){ACHS.forEach(a=>{if(a.ok(usr))seenAch.add(a.id);});}
+
+/* ============================================================
+   EXPORT
+   ============================================================ */
+function doExport(){
+  const b=getBdg(usr.points);
+  const sum=`SMART PARKING FINDER BAHRAIN
+─────────────────────────────
+User:          ${usr.name}
+Badge:         ${b.name}
+Total Points:  ${usr.points} pts
+─────────────────────────────
+Reports Submitted:   ${usr.reportsSubmitted}
+Confirmations:       ${usr.confirmations}
+Total Contributions: ${usr.reportsSubmitted+usr.confirmations}
+Recent Activity:     ${acts.length} items
+─────────────────────────────
+Exported: ${new Date().toLocaleString('en-GB')}
+Platform: Smart Parking Finder Bahrain
+Thesis Prototype · University Project`;
+  document.getElementById('mcontent').innerHTML=`
+    <div class="mhandle"></div>
+    <div class="mtitle">📤 Export Summary</div>
+    <div class="marea">Your contribution summary</div>
+    <div class="exp-sum">${sum}</div>
+    <button class="bcopy" onclick="cpSum(${JSON.stringify(sum).replace(/</g,'\\u003c')})">📋 Copy to Clipboard</button>
+    <button class="mcl" onclick="closeM()">Close</button>`;
+  document.getElementById('modal').classList.add('op');
+  document.body.style.overflow='hidden';
+}
+function cpSum(txt){
+  try{navigator.clipboard.writeText(txt);toast('📋','Summary copied to clipboard!','var(--cyan)');}
+  catch(e){toast('📋','Please copy the text manually.','var(--amber)');}
+}
+
+/* ============================================================
+   RESET
+   ============================================================ */
+function doReset(){
+  if(!confirm('Reset all data to demo defaults? This cannot be undone.'))return;
+  locs=clone(DEF_LOCS);usr={...DEF_USER};acts=[];rToday=0;seenAch=new Set();
+  save();buildRepSel();rAll();buildMiniMap();buildSimMap();
+  toast('🔄','Demo data has been reset.','var(--cyan)');
+}
+
+/* ============================================================
+   LIVE UPDATES
+   ============================================================ */
+function startLive(){setTimeout(doLive,26000);}
+function doLive(){
+  // Don't interrupt if user is filling the form
+  if((document.getElementById('rloc')||{}).value||(document.getElementById('rsp')||{}).value){
+    setTimeout(doLive,30000);return;
+  }
+  const statuses=['available','full','leaving'];
+  const loc=locs[Math.floor(Math.random()*locs.length)];
+  const ns=statuses[Math.floor(Math.random()*statuses.length)];
+  const sp=ns==='full'?0:Math.floor(Math.random()*70)+1;
+  loc.status=ns;loc.spaces=sp;loc.lastUpdated='Just now';
+  const sl=ns==='available'?'Available':ns==='full'?'Full':'Leaving Soon';
+  acts.unshift({id:Date.now()+Math.random(),type:'system',location:loc.name,status:ns,
+    time:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),points:0,note:'Automated live update'});
+  if(acts.length>120)acts.pop();
+  save();
+  toast('📡','Live: '+loc.name+' → '+sl,'var(--muted)');
+  const tab=document.querySelector('.sec.on')?.id?.replace('s-','');
+  if(tab==='home')rHome();
+  if(tab==='map')rMap();
+  if(tab==='activity')rAct();
+  updHdrPts();
+  setTimeout(doLive,28000+Math.random()*8000);
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+function toast(ico,msg,color){
+  const c=document.getElementById('toasts');
+  const t=document.createElement('div');
+  t.className='toast';t.style.borderColor=color;
+  t.innerHTML=`<div class="t-ico">${ico}</div><div class="t-msg">${msg}</div>`;
+  c.appendChild(t);
+  setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),300);},3200);
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+document.addEventListener('DOMContentLoaded',()=>{
+  loadData();
+  buildMiniMap();
+  buildSimMap();
+  buildRepSel();
+  initAch();
+  rAll();
+  startLive();
+  setTimeout(()=>rProf(),250);// animate progress bar
+});
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</body>
+</html>
